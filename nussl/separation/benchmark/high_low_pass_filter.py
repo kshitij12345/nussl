@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 from .. import MaskSeparationBase
 
@@ -22,7 +23,7 @@ class HighLowPassFilter(MaskSeparationBase):
     def run(self):
         # Compute the spectrogram and find the closest frequency bin to the cutoff freq
         closest_freq_bin = (
-            np.abs(self.audio_signal.freq_vector - self.high_pass_cutoff_hz)
+            torch.abs(self.audio_signal.freq_vector - self.high_pass_cutoff_hz)
         ).argmin()
 
         # Make masks

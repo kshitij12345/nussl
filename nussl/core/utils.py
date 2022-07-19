@@ -175,7 +175,8 @@ def _get_axis(array, axis_num, i):
         The value at index :param:`i` along axis :param:`axis_num`
     """
 
-    return np.take(array, i, axis_num)
+    dev = array.device
+    return torch.index_select(array, axis_num, torch.tensor(i, device=dev)).squeeze(axis_num)
 
 
 def _slice_along_dim(data, dim, start, end):

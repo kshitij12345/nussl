@@ -53,6 +53,7 @@ Examples:
 """
 
 import numpy as np
+import torch
 
 from . import MaskBase
 from . import BinaryMask
@@ -72,33 +73,10 @@ class SoftMask(MaskBase):
 
     @staticmethod
     def _validate_mask(mask_):
-        assert isinstance(mask_, np.ndarray), 'Mask must be a numpy array!'
+        assert isinstance(mask_, (np.ndarray, torch.Tensor)), 'Mask must be a numpy array!'
 
-        if mask_.dtype.kind not in np.typecodes['AllFloat']:
-            raise ValueError('Mask must have type: float! Maybe you want BinaryMask?')
+        # if mask_.dtype.kind not in np.typecodes['AllFloat']:
+        #     raise ValueError('Mask must have type: float! Maybe you want BinaryMask?')
+        assert mask_.dtype.is_floating_point
 
         return mask_
-
-    def mask_to_binary(self, threshold=0.5):
-        """
-        Create a new :class:`separation.masks.soft_mask.BinaryMask` object from this object's data.
-        
-        Args:
-            threshold (float, Optional): Threshold (between ``[0.0, 1.0]``) to set the True/False cutoff for the binary
-             mask.
-
-        Returns:
-            A new :class:`separation.masks.soft_mask.BinaryMask` object
-
-        """
-        return BinaryMask(self.mask > threshold)
-
-    def invert_mask(self):
-        """
-        Returns a new mask with inverted values set like ``1 - mask`` for :attr:`mask`.
-
-        Returns:
-            A new :class:`SoftMask` object with values set at ``1 - mask``.
-
-        """
-        return SoftMask(np.abs(1 - self.mask))

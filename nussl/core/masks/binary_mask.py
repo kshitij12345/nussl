@@ -67,6 +67,7 @@ Examples:
 """
 
 import numpy as np
+import torch
 
 from . import MaskBase
 

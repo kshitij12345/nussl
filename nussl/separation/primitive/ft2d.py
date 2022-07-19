@@ -4,6 +4,8 @@ from scipy.ndimage.filters import maximum_filter, minimum_filter, uniform_filter
 from .. import MaskSeparationBase, SeparationException
 from ..benchmark import HighLowPassFilter
 
+import torch
+
 
 class FT2D(MaskSeparationBase):
     """
@@ -112,22 +114,24 @@ class FT2D(MaskSeparationBase):
             background_masks.append(background_mask)
             foreground_masks.append(foreground_mask)
 
-        background_masks = np.stack(background_masks, axis=-1)
-        foreground_masks = np.stack(foreground_masks, axis=-1)
+        background_masks = torch.stack(background_masks, axis=-1)
+        foreground_masks = torch.stack(foreground_masks, axis=-1)
 
-        _masks = np.stack([background_masks, foreground_masks], axis=-1)
+        _masks = torch.stack([background_masks, foreground_masks], axis=-1)
 
         self.result_masks = []
 
         for i in range(_masks.shape[-1]):
             mask_data = _masks[..., i]
             if self.mask_type == self.MASKS['binary']:
-                mask_data = _masks[..., i] == np.max(_masks, axis=-1)
+                mask_data = _masks[..., i] == torch.max(_masks, axis=-1)
 
+            # high_pass_mask = high_pass_masks[i].mask.to(mask_data.device)
+            high_pass_mask = torch.tensor(high_pass_masks[i].mask, device=mask_data.device)
             if i == 0:
-                mask_data = np.maximum(mask_data, high_pass_masks[i].mask)
+                mask_data = torch.maximum(mask_data, high_pass_mask)
             elif i == 1:
-                mask_data = np.minimum(mask_data, high_pass_masks[i].mask)
+                mask_data = torch.minimum(mask_data, high_pass_mask)
 
             mask = self.mask_type(mask_data)
             self.result_masks.append(mask)
@@ -137,8 +141,8 @@ class FT2D(MaskSeparationBase):
     def _preprocess_audio_signal(self):
         super()._preprocess_audio_signal()
 
-        self.ft2d = np.stack([
-            np.fft.fft2(np.abs(self.stft[:, :, i]))
+        self.ft2d = torch.stack([
+            torch.fft.fft2(torch.abs(self.stft[:, :, i]))
             for i in range(self.audio_signal.num_channels)],
             axis=-1
         )
@@ -184,7 +188,7 @@ class FT2D(MaskSeparationBase):
         self.bg_ft2d = self.filter_quadrants(bg_ft2d, self.quadrants_to_keep)
         self.fg_ft2d = self.filter_quadrants(fg_ft2d, self.quadrants_to_keep)
 
-        _stft = np.abs(self.stft)[:, :, ch] + 1e-7
+        _stft = torch.abs(self.stft)[:, :, ch] + 1e-7
         _stft = _stft
 
         if self.use_bg_2dft:
@@ -192,7 +196,7 @@ class FT2D(MaskSeparationBase):
         else:
             ft2d_used = self.fg_ft2d
 
-        est_stft = np.minimum(np.abs(np.fft.ifft2(ft2d_used)), _stft)
+        est_stft = torch.minimum(torch.abs(torch.fft.ifft2(ft2d_used)), _stft)
         est_mask = est_stft / _stft
         est_mask /= (est_mask + 1e-7).max()
 
@@ -206,25 +210,31 @@ class FT2D(MaskSeparationBase):
         return bg_mask, fg_mask
 
     def filter_local_maxima_with_std(self, ft2d):
-        data = np.abs(np.fft.fftshift(ft2d))
-        data /= (np.max(data) + 1e-7)
+        data = torch.abs(torch.fft.fftshift(ft2d))
+        data /= (torch.max(data) + 1e-7)
 
-        data_max = maximum_filter(data, self.neighborhood_size)
-        data_mean = uniform_filter(data, self.neighborhood_size)
-        data_mean_sq = uniform_filter(data ** 2, self.neighborhood_size)
-        data_std = np.sqrt(data_mean_sq - data_mean ** 2) + 1e-7
+        dev = data.device
+        data_ = data.cpu()
+        data_max = maximum_filter(data_, self.neighborhood_size)
+        data_mean = uniform_filter(data_, self.neighborhood_size)
+        data_mean_sq = uniform_filter(data_ ** 2, self.neighborhood_size)
+
+        data_max = torch.tensor(data_max, device=dev)
+        data_mean = torch.tensor(data_mean, device=dev)
+        data_mean_sq = torch.tensor(data_mean_sq, device=dev)
+        data_std = torch.sqrt(data_mean_sq - data_mean ** 2) + 1e-7
 
         maxima = ((data_max - data_mean) / data_std)
         fraction_of_local_max = (data == data_max)
         maxima *= fraction_of_local_max
-        maxima = maxima.astype(float)
-        maxima /= (np.max(maxima) + 1e-7)
+        # maxima = maxima.astype(float)
+        maxima /= (torch.max(maxima) + 1e-7)
 
-        maxima = np.maximum(maxima, np.fliplr(maxima), np.flipud(maxima))
-        maxima = np.fft.ifftshift(maxima)
+        maxima = torch.maximum(maxima, torch.fliplr(maxima))
+        maxima = torch.fft.ifftshift(maxima)
 
-        background_ft2d = np.multiply(maxima, ft2d)
-        foreground_ft2d = np.multiply(1 - maxima, ft2d)
+        background_ft2d = torch.multiply(maxima, ft2d)
+        foreground_ft2d = torch.multiply(1 - maxima, ft2d)
 
         return background_ft2d, foreground_ft2d
 

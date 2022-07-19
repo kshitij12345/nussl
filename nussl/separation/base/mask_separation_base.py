@@ -6,7 +6,7 @@ nussl are derived from MaskSeparationBase.
 from ...core import masks
 from . import SeparationBase
 from .separation_base import SeparationException
-
+import torch
 
 class MaskSeparationBase(SeparationBase):
     """
@@ -231,6 +231,7 @@ class MaskSeparationBase(SeparationBase):
                     f"Expected {self.mask_type} but got {type(mask)} "
                     f"in self.result_masks!"
                 )
+            assert type(self.audio_signal.stft_data) == torch.Tensor
             estimate = self.audio_signal.apply_mask(mask, overwrite=False)
             estimate.istft()
             estimates.append(estimate)

@@ -11,6 +11,7 @@ releases nussl will support masks for representations with different dimensional
 import numbers
 
 import numpy as np
+import torch
 
 from .. import utils
 from .. import constants
@@ -29,7 +30,7 @@ class MaskBase(object):
             raise ValueError('Cannot initialize mask without mask_shape or input_mask!')
         if mask_shape is not None and input_mask is not None:
             raise ValueError('Cannot initialize mask with both mask_shape and input_mask!')
-        if isinstance(input_mask, np.ndarray):
+        if isinstance(input_mask, (np.ndarray, torch.Tensor)):
             self.mask = input_mask
         elif isinstance(mask_shape, tuple):
             self.mask = np.zeros(mask_shape)
@@ -56,7 +57,7 @@ class MaskBase(object):
 
     @mask.setter
     def mask(self, value):
-        assert isinstance(value, np.ndarray), 'Type of self.mask must be np.ndarray!'
+        assert isinstance(value, (np.ndarray, torch.Tensor)), 'Type of self.mask must be np.ndarray!'
 
         if value.ndim == 1:
             raise ValueError('Cannot support arrays with less than 2 dimensions!')
